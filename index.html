@@ -1,99 +1,144 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spreadsheet Duplicate Finder</title>
-    <!-- PapaParse for fast CSV parsing -->
-    <script src="https://cloudflare.com"></script>
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #333; }
-        .upload-area { border: 2px dashed #ccc; border-radius: 8px; padding: 40px; text-align: center; background: #fafafa; cursor: pointer; transition: border 0.2s; }
-        .upload-area:hover { border-color: #0066cc; background: #f2f8ff; }
-        #fileInput { display: none; }
-        .results-card { margin-top: 30px; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .duplicate-item { padding: 10px; border-bottom: 1px solid #eee; font-size: 14px; }
-        .duplicate-item:last-child { border-bottom: none; }
-        .badge { background: #ff4d4f; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
-        .success-msg { color: #52c41a; font-weight: bold; }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#f6f8fc">
+  <title>Spreadsheet Similarity Finder</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
 </head>
 <body>
+  <main class="app-shell">
+    <header class="page-header">
+      <div class="brand-mark" aria-hidden="true">⌕</div>
+      <div>
+        <p class="eyebrow">SPREADSHEET TOOL</p>
+        <h1>Similarity Finder</h1>
+        <p class="subtitle">Find repeated and similar words or numbers in your spreadsheet.</p>
+      </div>
+    </header>
 
-    <h2>Spreadsheet Duplicate Finder</h2>
-    <p>Upload a <strong>.csv</strong> file exported from Google Sheets to detect duplicate entries instantly.</p>
+    <section class="panel upload-panel" aria-labelledby="upload-heading">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">STEP 1</p>
+          <h2 id="upload-heading">Upload your spreadsheet</h2>
+        </div>
+        <span class="file-type">CSV files</span>
+      </div>
 
-    <div class="upload-area" id="dropZone" onclick="document.getElementById('fileInput').click()">
-        <p>Drag & drop your CSV file here, or <strong>click to browse</strong></p>
-        <input type="file" id="fileInput" accept=".csv">
-    </div>
+      <div class="drop-zone" id="dropZone" role="button" tabindex="0" aria-label="Choose a CSV file or drag and drop one here">
+        <div class="upload-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 15.5v3A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5v-3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <h3>Drop your CSV file here</h3>
+        <p>or <span class="browse-text">browse files</span> on your device</p>
+        <span class="file-note">Export your Google Sheet or Excel file as .csv first</span>
+        <input id="fileInput" type="file" accept=".csv,text/csv,.txt,text/plain" hidden>
+      </div>
+      <p class="privacy-note"><span aria-hidden="true">🔒</span> Your file is processed in your browser. It is not uploaded to a server.</p>
+      <p class="error-message" id="errorMessage" role="alert" hidden></p>
+    </section>
 
-    <div id="results" class="results-card" style="display: none;"></div>
+    <section class="panel settings-panel" id="settingsPanel" aria-labelledby="settings-heading" hidden>
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">STEP 2</p>
+          <h2 id="settings-heading">Choose what to compare</h2>
+        </div>
+        <button class="text-button" id="clearFileButton" type="button">Remove file</button>
+      </div>
 
-    <script>
-        const fileInput = document.getElementById('fileInput');
-        const dropZone = document.getElementById('dropZone');
-        const resultsDiv = document.getElementById('results');
+      <div class="file-loaded" id="fileLoaded">
+        <div class="file-icon" aria-hidden="true">CSV</div>
+        <div class="file-details">
+          <strong id="fileName">spreadsheet.csv</strong>
+          <span id="fileInfo">Ready to scan</span>
+        </div>
+        <span class="loaded-check" aria-label="File loaded">✓</span>
+      </div>
 
-        // Handle file selection
-        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+      <div class="settings-grid">
+        <label class="setting-field" for="scanMode">
+          <span class="setting-title">Compare</span>
+          <select id="scanMode">
+            <option value="words" selected>Individual words and numbers</option>
+            <option value="cells">Entire cell contents</option>
+          </select>
+          <span class="setting-help">Words mode checks each word and number separately.</span>
+        </label>
 
-        // Drag and drop handlers
-        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = '#0066cc'; });
-        dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#ccc'; });
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.style.borderColor = '#ccc';
-            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
-        });
+        <div class="setting-field">
+          <span class="setting-title">Similarity needed <strong id="thresholdValue">75%</strong></span>
+          <input id="threshold" type="range" min="60" max="100" step="5" value="75">
+          <div class="range-labels"><span>More matches</span><span>Stricter</span></div>
+          <span class="setting-help">Compares spelling and character patterns, not word meanings. Lower values find more possible matches, but may include unrelated terms.</span>
+        </div>
+      </div>
 
-        function handleFile(file) {
-            if (!file) return;
-            
-            Papa.parse(file, {
-                header: true,
-                skipEmptyLines: true,
-                complete: function(results) {
-                    processDuplicates(results.data);
-                }
-            });
-        }
+      <div class="check-options">
+        <label class="check-label">
+          <input id="firstRowHeader" type="checkbox" checked>
+          <span>First row contains column names</span>
+        </label>
+        <label class="check-label">
+          <input id="ignoreShortWords" type="checkbox" checked>
+          <span>Ignore words shorter than 3 letters</span>
+        </label>
+      </div>
 
-        function processDuplicates(data) {
-            const seen = new Set();
-            const duplicates = [];
+      <button class="primary-button" id="scanButton" type="button">
+        <span aria-hidden="true">⌕</span> Scan spreadsheet
+      </button>
+    </section>
 
-            data.forEach((row, index) => {
-                // Convert object values into a strict string to catch exact duplicate rows
-                const rowString = JSON.stringify(Object.values(row)).trim().toLowerCase();
-                
-                if (seen.has(rowString)) {
-                    // Excel/Google Sheets data rows usually start at index + 2 (header line + 0-indexing layout shift)
-                    duplicates.push({ line: index + 2, content: Object.values(row).join(" | ") });
-                } else {
-                    seen.add(rowString);
-                }
-            });
+    <section class="results-section" id="resultsSection" hidden aria-labelledby="results-heading">
+      <div class="results-heading-row">
+        <div>
+          <p class="eyebrow">STEP 3</p>
+          <h2 id="results-heading">Your results</h2>
+          <p class="results-subtitle" id="resultsSubtitle">Here are the repeated and similar values we found.</p>
+        </div>
+        <button class="secondary-button" id="downloadButton" type="button" disabled>
+          <span aria-hidden="true">↓</span> Export report
+        </button>
+      </div>
 
-            displayResults(duplicates);
-        }
+      <div class="summary-grid" aria-live="polite">
+        <div class="summary-card">
+          <span class="summary-label">Values checked</span>
+          <strong id="valuesChecked">0</strong>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Similar groups</span>
+          <strong id="similarCount">0</strong>
+        </div>
+        <div class="summary-card">
+          <span class="summary-label">Exact repeats</span>
+          <strong id="exactCount">0</strong>
+        </div>
+      </div>
 
-        function displayResults(duplicates) {
-            resultsDiv.style.display = 'block';
-            if (duplicates.length === 0) {
-                resultsDiv.innerHTML = '<p class="success-msg">🎉 No duplicate rows found!</p>';
-                return;
-            }
+      <div class="results-toolbar">
+        <div class="filter-tabs" role="tablist" aria-label="Filter result groups">
+          <button class="filter-tab active" type="button" data-filter="all" role="tab" aria-selected="true">All <span id="allTabCount">0</span></button>
+          <button class="filter-tab" type="button" data-filter="similar" role="tab" aria-selected="false">Similar <span id="similarTabCount">0</span></button>
+          <button class="filter-tab" type="button" data-filter="exact" role="tab" aria-selected="false">Exact <span id="exactTabCount">0</span></button>
+        </div>
+        <span class="sort-note">Most frequent first</span>
+      </div>
 
-            let html = `<h3>Found ${duplicates.length} repeating rows:</h3>`;
-            duplicates.forEach(item => {
-                html += `
-                    <div class="duplicate-item">
-                        <span class="badge">Row ${item.line}</span> <code>${item.content}</code>
-                    </div>`;
-            });
-            resultsDiv.innerHTML = html;
-        }
-    </script>
+      <div class="results-list" id="resultsList" aria-live="polite"></div>
+      <p class="scan-warning" id="scanWarning" hidden></p>
+    </section>
+
+    <footer class="page-footer">
+      <span>Similarity Finder</span>
+      <span>Runs locally in your browser</span>
+    </footer>
+  </main>
 </body>
 </html>
