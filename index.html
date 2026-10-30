@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spreadsheet Duplicate Finder</title>
+    <!-- PapaParse for fast CSV parsing -->
+    <script src="https://cloudflare.com"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 40px auto; padding: 0 20px; color: #333; }
+        .upload-area { border: 2px dashed #ccc; border-radius: 8px; padding: 40px; text-align: center; background: #fafafa; cursor: pointer; transition: border 0.2s; }
+        .upload-area:hover { border-color: #0066cc; background: #f2f8ff; }
+        #fileInput { display: none; }
+        .results-card { margin-top: 30px; border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .duplicate-item { padding: 10px; border-bottom: 1px solid #eee; font-size: 14px; }
+        .duplicate-item:last-child { border-bottom: none; }
+        .badge { background: #ff4d4f; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; }
+        .success-msg { color: #52c41a; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h2>Spreadsheet Duplicate Finder</h2>
+    <p>Upload a <strong>.csv</strong> file exported from Google Sheets to detect duplicate entries instantly.</p>
+
+    <div class="upload-area" id="dropZone" onclick="document.getElementById('fileInput').click()">
+        <p>Drag & drop your CSV file here, or <strong>click to browse</strong></p>
+        <input type="file" id="fileInput" accept=".csv">
+    </div>
+
+    <div id="results" class="results-card" style="display: none;"></div>
+
+    <script>
+        const fileInput = document.getElementById('fileInput');
+        const dropZone = document.getElementById('dropZone');
+        const resultsDiv = document.getElementById('results');
+
+        // Handle file selection
+        fileInput.addEventListener('change', (e) => handleFile(e.target.files[0]));
+
+        // Drag and drop handlers
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.style.borderColor = '#0066cc'; });
+        dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = '#ccc'; });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#ccc';
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+
+        function handleFile(file) {
+            if (!file) return;
+            
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    processDuplicates(results.data);
+                }
+            });
+        }
+
+        function processDuplicates(data) {
+            const seen = new Set();
+            const duplicates = [];
+
+            data.forEach((row, index) => {
+                // Convert object values into a strict string to catch exact duplicate rows
+                const rowString = JSON.stringify(Object.values(row)).trim().toLowerCase();
+                
+                if (seen.has(rowString)) {
+                    // Excel/Google Sheets data rows usually start at index + 2 (header line + 0-indexing layout shift)
+                    duplicates.push({ line: index + 2, content: Object.values(row).join(" | ") });
+                } else {
+                    seen.add(rowString);
+                }
+            });
+
+            displayResults(duplicates);
+        }
+
+        function displayResults(duplicates) {
+            resultsDiv.style.display = 'block';
+            if (duplicates.length === 0) {
+                resultsDiv.innerHTML = '<p class="success-msg">🎉 No duplicate rows found!</p>';
+                return;
+            }
+
+            let html = `<h3>Found ${duplicates.length} repeating rows:</h3>`;
+            duplicates.forEach(item => {
+                html += `
+                    <div class="duplicate-item">
+                        <span class="badge">Row ${item.line}</span> <code>${item.content}</code>
+                    </div>`;
+            });
+            resultsDiv.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
